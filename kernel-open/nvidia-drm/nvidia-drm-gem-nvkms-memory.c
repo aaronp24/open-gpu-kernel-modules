@@ -131,11 +131,11 @@ static struct drm_gem_object *__nv_drm_gem_nvkms_prime_dup(
     const struct nv_drm_gem_object *nv_gem_src);
 
 static int __nv_drm_gem_nvkms_map(
-    struct nv_drm_device *nv_dev,
-    struct NvKmsKapiMemory *pMemory,
-    struct nv_drm_gem_nvkms_memory *nv_nvkms_memory,
-    uint64_t size)
+    struct nv_drm_gem_nvkms_memory *nv_nvkms_memory)
 {
+    struct nv_drm_device *nv_dev = nv_nvkms_memory->base.nv_dev;
+    struct NvKmsKapiMemory *pMemory = nv_nvkms_memory->base.pMemory;
+
     if (!nv_dev->hasVideoMemory) {
         return 0;
     }
@@ -153,7 +153,7 @@ static int __nv_drm_gem_nvkms_map(
 
     nv_nvkms_memory->pWriteCombinedIORemapAddress = ioremap_wc(
             (uintptr_t)nv_nvkms_memory->pPhysicalAddress,
-            size);
+            nv_nvkms_memory->base.base.size);
 
     if (!nv_nvkms_memory->pWriteCombinedIORemapAddress) {
         NV_DRM_DEV_LOG_INFO(
@@ -176,10 +176,7 @@ static int __nv_drm_gem_map_nvkms_memory_offset(
         to_nv_nvkms_memory(nv_gem);
 
     if (!nv_nvkms_memory->physically_mapped) {
-        int ret = __nv_drm_gem_nvkms_map(nv_dev,
-                                         nv_nvkms_memory->base.pMemory,
-                                         nv_nvkms_memory,
-                                         nv_nvkms_memory->base.base.size);
+        int ret = __nv_drm_gem_nvkms_map(nv_nvkms_memory);
         if (ret) {
            return ret;
         }
@@ -314,7 +311,7 @@ int nv_drm_dumb_create(
      * to use dumb buffers for software rendering, so they're not much use
      * without a CPU mapping.
      */
-    ret = __nv_drm_gem_nvkms_map(nv_dev, pMemory, nv_nvkms_memory, args->size);
+    ret = __nv_drm_gem_nvkms_map(nv_nvkms_memory);
     if (ret) {
         nv_drm_gem_object_unreference_unlocked(&nv_nvkms_memory->base);
         goto fail;
