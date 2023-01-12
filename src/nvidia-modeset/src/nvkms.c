@@ -1256,6 +1256,7 @@ static NvBool AllocDevice(struct NvKmsPerOpen *pOpen,
     struct NvKmsPerOpenDev *pOpenDev;
     NvU32 disp, head;
     NvU8 layer;
+    NvBool privileged;
 
     nvkms_memset(&pParams->reply, 0, sizeof(pParams->reply));
 
@@ -1263,6 +1264,11 @@ static NvBool AllocDevice(struct NvKmsPerOpen *pOpen,
         pParams->reply.status = NVKMS_ALLOC_DEVICE_STATUS_VERSION_MISMATCH;
         return FALSE;
     }
+
+    /*
+     * Make kernel-mode (i.e. nvidia-drm) clients privileged.
+     */
+    privileged = pOpen->clientType == NVKMS_CLIENT_KERNEL_SPACE;
 
     /*
      * It is an error to call NVKMS_IOCTL_ALLOC_DEVICE multiple times
@@ -1295,7 +1301,7 @@ static NvBool AllocDevice(struct NvKmsPerOpen *pOpen,
         pDevEvo->allocRefCnt++;
     }
 
-    pOpenDev = nvAllocPerOpenDev(pOpen, pDevEvo, FALSE /* isPrivileged */);
+    pOpenDev = nvAllocPerOpenDev(pOpen, pDevEvo, privileged);
 
     if (pOpenDev == NULL) {
         nvFreeDevEvo(pDevEvo);
