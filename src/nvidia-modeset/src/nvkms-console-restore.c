@@ -679,6 +679,10 @@ NvBool nvEvoRestoreConsole(NVDevEvoPtr pDevEvo, const NvBool allowMST)
                                      pDevEvo->fbConsoleSurfaceHandle);
     struct NvKmsSetModeParams *params;
 
+    // Let nvidia-drm handle the console.
+    ret = TRUE;
+    goto done;
+
     /*
      * If this function fails to restore a console then NVKMS frees
      * and reallocates the core channel, to attempt the console

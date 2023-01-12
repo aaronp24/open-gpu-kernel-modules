@@ -33,6 +33,8 @@ struct page;
 
 /* Set to true when the atomic modeset feature is enabled. */
 extern bool nv_drm_modeset_module_param;
+/* Set to true when the nvidia-drm driver should install a framebuffer device */
+extern bool nv_drm_fbdev_module_param;
 
 void *nv_drm_calloc(size_t nmemb, size_t size);
 

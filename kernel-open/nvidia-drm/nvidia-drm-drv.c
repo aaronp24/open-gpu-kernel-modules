@@ -60,6 +60,8 @@
 #include <drm/drm_ioctl.h>
 #endif
 
+#include <drm/drm_aperture.h>
+#include <drm/drm_fb_helper.h>
 #include <linux/pci.h>
 
 /*
@@ -981,6 +983,12 @@ static void nv_drm_register_drm_device(const nv_gpu_info_t *gpu_info)
         goto failed_drm_register;
     }
 
+    if (nv_drm_fbdev_module_param && drm_core_check_feature(dev, DRIVER_MODESET)) {
+        if (device->bus == &pci_bus_type)
+            drm_aperture_remove_conflicting_pci_framebuffers(to_pci_dev(device), &nv_drm_driver);
+        drm_fbdev_generic_setup(dev, 32);
+    }
+
     /* Add NVIDIA-DRM device into list */
 
     nv_dev->next = dev_list;
@@ -1050,9 +1058,13 @@ void nv_drm_remove_devices(void)
 {
     while (dev_list != NULL) {
         struct nv_drm_device *next = dev_list->next;
+        struct drm_device *dev = dev_list->dev;
 
-        drm_dev_unregister(dev_list->dev);
-        nv_drm_dev_free(dev_list->dev);
+        if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+            drm_atomic_helper_shutdown(dev);
+        }
+        drm_dev_unregister(dev);
+        nv_drm_dev_free(dev);
 
         nv_drm_free(dev_list);
 

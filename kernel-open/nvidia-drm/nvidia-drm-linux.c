@@ -45,6 +45,12 @@ MODULE_PARM_DESC(
 bool nv_drm_modeset_module_param = false;
 module_param_named(modeset, nv_drm_modeset_module_param, bool, 0400);
 
+MODULE_PARM_DESC(
+    fbdev,
+    "Create a framebuffer device (EXPERIMENTAL) (1 = enable, 0 = disable (default))");
+bool nv_drm_fbdev_module_param = false;
+module_param_named(fbdev, nv_drm_fbdev_module_param, bool, 0400);
+
 void *nv_drm_calloc(size_t nmemb, size_t size)
 {
     size_t total_size = nmemb * size;
