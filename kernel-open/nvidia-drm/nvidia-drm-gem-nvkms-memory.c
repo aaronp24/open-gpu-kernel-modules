@@ -167,6 +167,22 @@ static int __nv_drm_gem_nvkms_map(
     return 0;
 }
 
+static void *__nv_drm_gem_nvkms_prime_vmap(
+    struct nv_drm_gem_object *nv_gem)
+{
+    struct nv_drm_gem_nvkms_memory *nv_nvkms_memory =
+        to_nv_nvkms_memory(nv_gem);
+
+    if (!nv_nvkms_memory->physically_mapped) {
+        int ret = __nv_drm_gem_nvkms_map(nv_nvkms_memory);
+        if (ret) {
+           return ERR_PTR(ret);
+        }
+    }
+
+    return nv_nvkms_memory->pWriteCombinedIORemapAddress;
+}
+
 static int __nv_drm_gem_map_nvkms_memory_offset(
     struct nv_drm_device *nv_dev,
     struct nv_drm_gem_object *nv_gem,
@@ -211,6 +227,7 @@ static struct sg_table *__nv_drm_gem_nvkms_memory_prime_get_sg_table(
 const struct nv_drm_gem_object_funcs nv_gem_nvkms_memory_ops = {
     .free = __nv_drm_gem_nvkms_memory_free,
     .prime_dup = __nv_drm_gem_nvkms_prime_dup,
+    .prime_vmap = __nv_drm_gem_nvkms_prime_vmap,
     .mmap = __nv_drm_gem_nvkms_mmap,
     .handle_vma_fault = __nv_drm_gem_nvkms_handle_vma_fault,
     .create_mmap_offset = __nv_drm_gem_map_nvkms_memory_offset,
