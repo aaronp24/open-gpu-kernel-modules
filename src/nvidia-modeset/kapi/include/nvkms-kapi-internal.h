@@ -132,6 +132,7 @@ struct NvKmsKapiDevice {
 
         NvBool supportsInputColorSpace;
         NvBool supportsInputColorRange;
+        NvBool supportsWindowMode;
     } caps;
 
     NvU64 supportedSurfaceMemoryFormats[NVKMS_KAPI_LAYER_MAX];
@@ -146,6 +147,10 @@ struct NvKmsKapiDevice {
     struct NvKmsKapiNisoSurface semaphore;
 
     NvU32 numDisplaySemaphores;
+
+    struct {
+        struct NvKmsMode mode;
+    } headState[NVKMS_KAPI_MAX_HEADS];
 
     struct {
         NvU32 currFlipNotifierIndex;
@@ -170,6 +175,7 @@ struct NvKmsKapiMemory {
 
 struct NvKmsKapiSurface {
     NvKmsSurfaceHandle hKmsHandle;
+    struct NvKmsSize size;
 };
 
 static inline void *nvKmsKapiCalloc(size_t nmem, size_t size)

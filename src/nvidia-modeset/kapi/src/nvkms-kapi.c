@@ -510,6 +510,8 @@ static NvBool KmsAllocateDevice(struct NvKmsKapiDevice *device)
     device->caps.supportsInputColorRange =
         paramsAlloc->reply.supportsInputColorRange;
 
+    device->caps.supportsWindowMode =
+        paramsAlloc->reply.layerCaps[NVKMS_MAIN_LAYER].supportsWindowMode;
 
     /* XXX Add LUT support */
 
@@ -2443,6 +2445,8 @@ static struct NvKmsKapiSurface* CreateSurface
     }
 
     surface->hKmsHandle = paramsReg.reply.surfaceHandle;
+    surface->size.width = params->width;
+    surface->size.height = params->height;
 
 done:
     return surface;
@@ -3027,6 +3031,7 @@ static NvBool NvKmsKapiPrimaryLayerConfigToKms(
     struct NvKmsKapiDevice *device,
     const struct NvKmsKapiLayerRequestedConfig *layerRequestedConfig,
     const NvU32 head,
+    const struct NvKmsMode *mode,
     struct NvKmsFlipCommonParams *params,
     NvBool commit,
     NvBool bFromKmsSetMode)
@@ -3053,12 +3058,42 @@ static NvBool NvKmsKapiPrimaryLayerConfigToKms(
                 layerConfig->surface->hKmsHandle;
 
             if (params->layer[NVKMS_MAIN_LAYER].surface.handle[0] != 0) {
-                params->layer[NVKMS_MAIN_LAYER].sizeIn.val.width = layerConfig->srcWidth;
-                params->layer[NVKMS_MAIN_LAYER].sizeIn.val.height = layerConfig->srcHeight;
-                params->layer[NVKMS_MAIN_LAYER].sizeIn.specified = TRUE;
+                const NvU32 surfaceWidth = layerConfig->surface->size.width;
+                const NvU32 surfaceHeight = layerConfig->surface->size.height;
 
-                params->layer[NVKMS_MAIN_LAYER].sizeOut.val.width = layerConfig->dstWidth;
-                params->layer[NVKMS_MAIN_LAYER].sizeOut.val.height = layerConfig->dstHeight;
+                // If there's no scaling and the sizeOut is going to be clamped
+                // to size of the mode, then set the sizes to the size of the
+                // surface rather than the size requested in the layerConfig.
+                //
+                // GPUs prior to nvdisplay require the sizeIn to match the size
+                // of the surface.
+                if (!device->caps.supportsWindowMode &&
+                    layerConfig->srcWidth == layerConfig->dstWidth &&
+                    layerConfig->dstWidth >= mode->timings.hVisible &&
+                    layerConfig->dstX == 0 &&
+                    surfaceWidth > layerConfig->dstWidth) {
+
+                    params->layer[NVKMS_MAIN_LAYER].sizeIn.val.width = surfaceWidth;
+                    params->layer[NVKMS_MAIN_LAYER].sizeOut.val.width = surfaceWidth;
+                } else {
+                    params->layer[NVKMS_MAIN_LAYER].sizeIn.val.width = layerConfig->srcWidth;
+                    params->layer[NVKMS_MAIN_LAYER].sizeOut.val.width = layerConfig->dstWidth;
+                }
+
+                if (!device->caps.supportsWindowMode &&
+                    layerConfig->srcHeight == layerConfig->dstHeight &&
+                    layerConfig->dstHeight >= mode->timings.vVisible &&
+                    layerConfig->dstY == 0 &&
+                    surfaceHeight > layerConfig->dstHeight) {
+
+                    params->layer[NVKMS_MAIN_LAYER].sizeIn.val.height = surfaceHeight;
+                    params->layer[NVKMS_MAIN_LAYER].sizeOut.val.height = surfaceHeight;
+                } else {
+                    params->layer[NVKMS_MAIN_LAYER].sizeIn.val.height = layerConfig->srcHeight;
+                    params->layer[NVKMS_MAIN_LAYER].sizeOut.val.height = layerConfig->dstHeight;
+                }
+
+                params->layer[NVKMS_MAIN_LAYER].sizeIn.specified = TRUE;
                 params->layer[NVKMS_MAIN_LAYER].sizeOut.specified = TRUE;
             }
         }
@@ -3216,6 +3251,7 @@ static NvBool NvKmsKapiLayerConfigToKms(
     const struct NvKmsKapiLayerRequestedConfig *layerRequestedConfig,
     const NvU32 layer,
     const NvU32 head,
+    const struct NvKmsMode *mode,
     struct NvKmsFlipCommonParams *params,
     NvBool commit,
     NvBool bFromKmsSetMode)
@@ -3224,6 +3260,7 @@ static NvBool NvKmsKapiLayerConfigToKms(
         return NvKmsKapiPrimaryLayerConfigToKms(device,
                                                 layerRequestedConfig,
                                                 head,
+                                                mode,
                                                 params,
                                                 commit,
                                                 bFromKmsSetMode);
@@ -3416,6 +3453,7 @@ static NvBool NvKmsKapiRequestedModeSetConfigToKms(
                                            layerRequestedConfig,
                                            layer,
                                            head,
+                                           &paramsHead->mode,
                                            &paramsHead->flip,
                                            commit,
                                            NV_TRUE /* bFromKmsSetMode */)) {
@@ -3519,6 +3557,19 @@ static NvBool KmsSetMode(
         }
 
         status = NV_FALSE;
+    } else {
+        const NvU32 dispIdx = device->dispIdx;
+        int head;
+
+        // Cache the mode timings to be used later by
+        // NvKmsKapiPrimaryLayerConfigToKms.
+        for (head = 0; head < ARRAY_LEN(device->headState); head++) {
+            const struct NvKmsSetModeOneDispRequest *dispRequest =
+                &params->request.disp[dispIdx];
+            if (dispRequest->requestedHeadsBitMask & (1 << head)) {
+                device->headState[head].mode = dispRequest->head[head].mode;
+            }
+        }
     }
 
 done:
@@ -3614,6 +3665,7 @@ static NvBool KmsFlip(
                                                layerRequestedConfig,
                                                layer,
                                                head,
+                                               &device->headState[head].mode,
                                                flipParams,
                                                commit,
                                                NV_FALSE /* bFromKmsSetMode */);
