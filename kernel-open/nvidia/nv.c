@@ -3706,7 +3706,7 @@ void* NV_API_CALL nv_alloc_kernel_mapping(
         }
         else
         {
-            NV_KMALLOC(pages, sizeof(struct page *) * page_count);
+            pages = kvmalloc_array(page_count, sizeof(struct page *), NV_GFP_KERNEL);
             if (pages == NULL)
             {
                 nv_printf(NV_DBG_ERRORS,
@@ -3719,7 +3719,7 @@ void* NV_API_CALL nv_alloc_kernel_mapping(
 
             virt_addr = nv_vm_map_pages(pages, page_count,
                 at->cache_type == NV_MEMORY_CACHED, at->flags.unencrypted);
-            NV_KFREE(pages, sizeof(struct page *) * page_count);
+            kvfree(pages);
         }
 
         if (virt_addr == 0)
