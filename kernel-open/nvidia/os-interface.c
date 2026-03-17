@@ -37,6 +37,7 @@
 #include <linux/cpuset.h>
 #include <linux/sys_soc.h>
 
+#include <linux/shmem_fs.h>
 #include <linux/pid.h>
 #include <linux/pid_namespace.h>
 #if defined(CONFIG_LOCKDEP)
@@ -1848,51 +1849,59 @@ NV_STATUS NV_API_CALL os_open_temporary_file
     void **ppFile
 )
 {
+    struct file *file = ERR_PTR(-EOPNOTSUPP);
 #if NV_FILESYSTEM_ACCESS_AVAILABLE
-#if defined(O_TMPFILE)
-    struct file *file;
     const char *default_path = "/tmp";
     const int flags = O_TMPFILE | O_LARGEFILE | O_RDWR;
     const char *path = NVreg_TemporaryFilePath;
 
-    /*
-     * The filp_open() call below depends on the current task's fs_struct
-     * (current->fs), which may already be NULL if this is called during
-     * process teardown.
-     */
-    if (current->fs == NULL)
-    {
-        return NV_ERR_OPERATING_SYSTEM;
-    }
-
     if (!path)
     {
-        path = default_path;
+#if defined(mk_vma_flags)
+        file = shmem_file_setup("nvidia-tmp", 0, mk_vma_flags(VMA_NORESERVE_BIT));
+#else
+        file = shmem_file_setup("nvidia-tmp", 0, VM_NORESERVE);
+#endif
+        if (!IS_ERR(file))
+        {
+                file->f_flags |= O_LARGEFILE;
+        }
     }
 
-    file = filp_open(path, flags, 0);
-    if (IS_ERR(file) && path != default_path)
+    if (path)
     {
-        nv_printf(NV_DBG_ERRORS,
-                  "NVRM: The temporary file path specified via the NVreg_TemporaryFilePath\n"
-                  "NVRM: module parameter could not be opened (error %ld).\n",
-                  PTR_ERR(file));
+        /*
+         * The filp_open() call below depends on the current task's fs_struct
+         * (current->fs), which may already be NULL if this is called during
+         * process teardown.
+         */
+        if (current->fs == NULL)
+        {
+            return NV_ERR_OPERATING_SYSTEM;
+        }
+
+        file = filp_open(path, flags, 0);
+        if (IS_ERR(file) && path != default_path)
+        {
+            nv_printf(NV_DBG_ERRORS,
+                      "NVRM: The temporary file path specified via the NVreg_TemporaryFilePath\n"
+                      "NVRM: module parameter could not be opened (error %ld).\n",
+                      PTR_ERR(file));
+        }
     }
+#endif
 
     if (IS_ERR(file))
     {
+        nv_printf(NV_DBG_INFO,
+                  "NVRM: os_open_temporary_file failed: %ld\n",
+                  PTR_ERR(file));
         return NV_ERR_OPERATING_SYSTEM;
     }
 
     *ppFile = (void *)file;
 
     return NV_OK;
-#else
-    return NV_ERR_NOT_SUPPORTED;
-#endif
-#else
-    return NV_ERR_NOT_SUPPORTED;
-#endif
 }
 
 void NV_API_CALL os_close_file
