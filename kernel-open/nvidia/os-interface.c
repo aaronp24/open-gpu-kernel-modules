@@ -1871,16 +1871,12 @@ NV_STATUS NV_API_CALL os_open_temporary_file
     }
 
     file = filp_open(path, flags, 0);
-    if (IS_ERR(file))
+    if (IS_ERR(file) && path != default_path)
     {
-        if ((path != default_path) && (PTR_ERR(file) == -ENOENT))
-        {
-            nv_printf(NV_DBG_ERRORS,
-                      "NVRM: The temporary file path specified via the NVreg_TemporaryFilePath\n"
-                      "NVRM: module parameter does not exist. Defaulting to /tmp.\n");
-
-            file = filp_open(default_path, flags, 0);
-        }
+        nv_printf(NV_DBG_ERRORS,
+                  "NVRM: The temporary file path specified via the NVreg_TemporaryFilePath\n"
+                  "NVRM: module parameter could not be opened (error %ld).\n",
+                  PTR_ERR(file));
     }
 
     if (IS_ERR(file))
